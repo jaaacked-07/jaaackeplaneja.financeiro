@@ -368,13 +368,13 @@ function seed(){
     {id:uid(),name:'Imposto',value:51,cat:'Imposto',payer:'pai',type:'Anual',method:'PIX',due:5,obs:'',salario:'pai_2'},
     {id:uid(),name:'Plano Pai Tim',value:59,cat:'Telefone',payer:'pai',type:'Fixa',method:'PIX',due:5,obs:'',salario:'pai_2'},
     // divididos 50/50
-    {id:uid(),name:'Carro',value:775,cat:'Transporte',payer:'dividido',type:'Parcelada',method:'PIX',due:10,obs:'IPVA / financiamento',salario:'pai_1'},
-    {id:uid(),name:'Claro Eu',value:90,cat:'Telefone',payer:'dividido',type:'Fixa',method:'PIX',due:10,obs:'falar q é ALEXA',salario:'pai_1'},
-    {id:uid(),name:'Vision',value:238,cat:'Assinatura',payer:'dividido',type:'Fixa',method:'PIX',due:10,obs:'',salario:'pai_1'},
-    {id:uid(),name:'Seguro de Vida',value:179,cat:'Seguro',payer:'dividido',type:'Recorrente',method:'Débito Automático',due:10,obs:'fiz caixinha p/ não mexer',salario:'pai_1'},
-    {id:uid(),name:'Metade Imposto de Renda',value:224,cat:'Imposto',payer:'dividido',type:'Parcelada',method:'Cartão',due:10,obs:'vai ser pago no cartão',salario:'pai_1'},
-    {id:uid(),name:'Metade cartão',value:1188,cat:'Cartão',payer:'dividido',type:'Recorrente',method:'Cartão',due:4,obs:'metade cartão',salario:'pai_1'},
-    {id:uid(),name:'Receita Federal Mãe',value:68,cat:'Imposto',payer:'dividido',type:'Parcelada',method:'PIX',due:10,obs:'5 parcelas (simulação)',salario:'pai_1'},
+    {id:uid(),name:'Carro',value:775,cat:'Transporte',payer:'dividido',type:'Parcelada',method:'PIX',due:10,obs:'IPVA / financiamento',salario:['pai_1','eu_1']},
+    {id:uid(),name:'Claro Eu',value:90,cat:'Telefone',payer:'dividido',type:'Fixa',method:'PIX',due:10,obs:'falar q é ALEXA',salario:['pai_1','eu_1']},
+    {id:uid(),name:'Vision',value:238,cat:'Assinatura',payer:'dividido',type:'Fixa',method:'PIX',due:10,obs:'',salario:['pai_1','eu_1']},
+    {id:uid(),name:'Seguro de Vida',value:179,cat:'Seguro',payer:'dividido',type:'Recorrente',method:'Débito Automático',due:10,obs:'fiz caixinha p/ não mexer',salario:['pai_1','eu_1']},
+    {id:uid(),name:'Metade Imposto de Renda',value:224,cat:'Imposto',payer:'dividido',type:'Parcelada',method:'Cartão',due:10,obs:'vai ser pago no cartão',salario:['pai_1','eu_1']},
+    {id:uid(),name:'Metade cartão',value:1188,cat:'Cartão',payer:'dividido',type:'Recorrente',method:'Cartão',due:4,obs:'metade cartão',salario:['pai_1','eu_1']},
+    {id:uid(),name:'Receita Federal Mãe',value:68,cat:'Imposto',payer:'dividido',type:'Parcelada',method:'PIX',due:10,obs:'5 parcelas (simulação)',salario:['pai_1','eu_1']},
     // minhas
     {id:uid(),name:'Mercado',value:400,cat:'Mercado',payer:'eu',type:'Recorrente',method:'Cartão',due:7,obs:'100/semana (4 semanas)',salario:'eu_1'},
     {id:uid(),name:'Remédios',value:400,cat:'Saúde',payer:'eu',type:'Recorrente',method:'Dinheiro',due:7,obs:'genérico 300 + cartão',salario:'eu_1'},
@@ -626,8 +626,9 @@ function renderDivisao(){
 
   let html='';
   GROUPS.forEach(g=>{
-    const contas=d.accounts.filter(a=>(a.salario||'')===g.key);
-    const cartoes=d.card.filter(c=>(c.salario||'')===g.key).map(c=>({...c,_source:'card',payer:'eu',due:4,obs:c.parcelas>0?`${c.atual}/${c.parcelas} parcelas`:'recorrente'}));
+    const hasSal=x=>{const s=x.salario||[];return Array.isArray(s)?s.includes(g.key):s===g.key;};
+    const contas=d.accounts.filter(hasSal);
+    const cartoes=d.card.filter(hasSal).map(c=>({...c,_source:'card',payer:'eu',due:4,obs:c.parcelas>0?`${c.atual}/${c.parcelas} parcelas`:'recorrente'}));
     const todos=[...contas,...cartoes];
     if(!todos.length)return;
     const total=todos.reduce((s,a)=>s+(a._source==='card'?a.value:myShare(a)),0);
@@ -823,7 +824,8 @@ const SAL_OPTS=[
 function editConta(id){
   const d=MD();const a=id?d.accounts.find(x=>x.id===id):{name:'',value:'',cat:ST.settings.categories[0],payer:'eu',type:'Fixa',method:'PIX',due:10,obs:'',salario:''};
   const cats=ST.settings.categories.map(c=>`<option ${c===a.cat?'selected':''}>${c}</option>`).join('');
-  const salOpts=SAL_OPTS.map(s=>`<option value="${s.v}" ${s.v===(a.salario||'')?'selected':''}>${s.l}</option>`).join('');
+  const curSal=Array.isArray(a.salario)?a.salario:(a.salario?[a.salario]:[]);
+  const salChk=SAL_OPTS.filter(s=>s.v).map(s=>`<label style="display:flex;align-items:center;gap:8px;font-size:13px;padding:4px 0;cursor:pointer"><input type="checkbox" class="sal-chk" value="${s.v}" ${curSal.includes(s.v)?'checked':''}> ${s.l}</label>`).join('');
   openModal(id?'Editar conta':'Nova conta',`
     <div class="form-grid">
       <div class="full"><label>Nome</label><input id="f-name" value="${a.name}"></div>
@@ -833,7 +835,7 @@ function editConta(id){
       <div><label>Quem paga?</label><select id="f-payer">${opt(['eu','pai','dividido'],a.payer,{eu:'Eu',pai:'Pai',dividido:'Dividido'})}</select></div>
       <div><label>Tipo</label><select id="f-type">${['Fixa','Recorrente','Parcelada','Anual','Extra'].map(t=>`<option ${t===a.type?'selected':''}>${t}</option>`).join('')}</select></div>
       <div><label>Forma de pagamento</label><select id="f-method">${['PIX','Cartão','Débito Automático','Dinheiro'].map(m=>`<option ${m===a.method?'selected':''}>${m}</option>`).join('')}</select></div>
-      <div><label>Vinculado ao salário</label><select id="f-sal">${salOpts}</select></div>
+      <div class="full"><label>Vinculado ao(s) salário(s)</label><div style="display:flex;flex-wrap:wrap;gap:4px 20px;padding:8px 0">${salChk}</div></div>
       <div class="full"><label>Observações</label><input id="f-obs" value="${a.obs||''}"></div>
     </div>
     <div class="modal-actions">
@@ -845,7 +847,7 @@ function saveConta(id){
   const d=MD();
   const payer=val('f-payer');
   const obj={name:val('f-name'),value:+val('f-value')||0,due:+val('f-due')||1,cat:val('f-cat'),
-    payer,type:val('f-type'),method:val('f-method'),obs:val('f-obs'),salario:val('f-sal')};
+    payer,type:val('f-type'),method:val('f-method'),obs:val('f-obs'),salario:[...document.querySelectorAll('.sal-chk:checked')].map(c=>c.value)};
   if(id){
     const ex=d.accounts.find(x=>x.id===id);
     // se mudou de dividido para outro, reseta flags parciais
@@ -955,7 +957,8 @@ function renderCartao(){
 function editCard(id){
   const d=MD();const c=id?d.card.find(x=>x.id===id):{name:'',value:'',parcelas:0,atual:0,cat:ST.settings.categories[0],obs:'',salario:'eu_1'};
   const cats=ST.settings.categories.map(x=>`<option ${x===c.cat?'selected':''}>${x}</option>`).join('');
-  const salOpts=SAL_OPTS.map(s=>`<option value="${s.v}" ${s.v===(c.salario||'eu_1')?'selected':''}>${s.l}</option>`).join('');
+  const curSalC=Array.isArray(c.salario)?c.salario:(c.salario?[c.salario]:['eu_1']);
+  const salChkC=SAL_OPTS.filter(s=>s.v).map(s=>`<label style="display:flex;align-items:center;gap:8px;font-size:13px;padding:4px 0;cursor:pointer"><input type="checkbox" class="sal-chk" value="${s.v}" ${curSalC.includes(s.v)?'checked':''}> ${s.l}</label>`).join('');
   openModal(id?'Editar compra':'Nova compra',`
     <div class="form-grid">
       <div class="full"><label>Nome</label><input id="c-name" value="${c.name}"></div>
@@ -963,14 +966,14 @@ function editCard(id){
       <div><label>Categoria</label><select id="c-cat">${cats}</select></div>
       <div><label>Total de parcelas (0 = recorrente)</label><input id="c-parc" type="number" min="0" value="${c.parcelas}"></div>
       <div><label>Parcela atual</label><input id="c-atual" type="number" min="0" value="${c.atual}"></div>
-      <div><label>Vinculado ao salário</label><select id="c-sal">${salOpts}</select></div>
+      <div class="full"><label>Vinculado ao(s) salário(s)</label><div style="display:flex;flex-wrap:wrap;gap:4px 20px;padding:8px 0">${salChkC}</div></div>
       <div class="full"><label>Observações</label><input id="c-obs" value="${c.obs||''}"></div>
     </div>
     <div class="modal-actions"><button class="btn ghost" onclick="closeModal()">Cancelar</button>
       <button class="btn" onclick="saveCard('${id||''}')">Salvar</button></div>`);
 }
 function saveCard(id){
-  const d=MD();const obj={name:val('c-name'),value:+val('c-value')||0,parcelas:+val('c-parc')||0,atual:+val('c-atual')||0,cat:val('c-cat'),obs:val('c-obs'),salario:val('c-sal')};
+  const d=MD();const obj={name:val('c-name'),value:+val('c-value')||0,parcelas:+val('c-parc')||0,atual:+val('c-atual')||0,cat:val('c-cat'),obs:val('c-obs'),salario:[...document.querySelectorAll('.sal-chk:checked')].map(c=>c.value)};
   if(id)Object.assign(d.card.find(x=>x.id===id),obj);else d.card.push({id:uid(),...obj});
   save();closeModal();renderCartao();toast('Compra salva ✓');
 }
