@@ -221,6 +221,17 @@ main{flex:1;padding:26px 30px 60px;max-width:1240px;margin:0 auto;width:100%}
   .form-grid{grid-template-columns:1fr}
   .topbar h1{font-size:22px}
 }
+
+/* ACCORDION DIVISÃO */
+.sal-body{overflow:hidden;transition:max-height .3s ease;max-height:0}
+.sal-body.open{max-height:4000px}
+.sal-header{cursor:pointer;user-select:none}
+.sal-chevron{transition:transform .3s;color:var(--ink-soft)}
+.sal-header.open .sal-chevron{transform:rotate(180deg)}
+/* destaque pago dentro da divisão */
+.row-paid-here{border-left:4px solid var(--verde)!important;background:var(--verde-bg)!important}
+.row-paid-here .amt{color:var(--verde)!important}
+
 .backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,.3);z-index:55}
 .backdrop.show{display:block}
 </style>
@@ -416,7 +427,9 @@ function statusColor(a){
   if(CUR===curM){
     if(a.due<today)return 'vermelho';
     if(a.due===today)return 'amarelo';
-  }else if(CUR<curM){return 'vermelho';}
+    return 'cinza';
+  }
+  if(CUR<curM)return 'vermelho';
   return 'cinza';
 }
 function isFullyPaid(a){
@@ -596,6 +609,12 @@ function annualEconomy(){const y=CUR.split('-')[0];let t=0;Object.keys(ST.months
 /* ============================================================
    6. DIVISÃO POR PAGAMENTOS (nova aba)
    ============================================================ */
+function toggleSal(id,hdr){
+  const b=document.getElementById(id);
+  const open=b.classList.toggle('open');
+  hdr.classList.toggle('open',open);
+  lucide.createIcons();
+}
 function renderDivisao(){
   const d=MD();
   const today=new Date().getDate();
@@ -633,16 +652,17 @@ function renderDivisao(){
     if(!todos.length)return;
     const total=todos.reduce((s,a)=>s+(a._source==='card'?a.value:myShare(a)),0);
 
+    const gid='sal-'+g.key;
     html+=`<div class="sal-block">
-      <div class="sal-header ${g.cls}">
+      <div class="sal-header ${g.cls}" onclick="toggleSal('${gid}',this)">
         <div class="sal-ic"><i data-lucide="${g.icon}"></i></div>
         <div class="sal-info">
           <div class="sal-title">${g.label}</div>
-          <div class="sal-sub">${todos.length} conta${todos.length>1?'s':''} vinculada${todos.length>1?'s':''}</div>
+          <div class="sal-sub">${todos.length} conta${todos.length>1?'s':''} · ${fmt(total)}</div>
         </div>
-        <div class="sal-total">${fmt(total)}</div>
+        <i data-lucide="chevron-down" class="sal-chevron" style="width:20px;height:20px"></i>
       </div>
-      <div class="list">`;
+      <div class="sal-body" id="${gid}"><div class="list">`;
 
     todos.forEach(a=>{
       const col=a._source==='card'?'cinza':statusColor(a);
@@ -667,7 +687,11 @@ function renderDivisao(){
         <button class="ico-btn" onclick="editConta('${a.id}')"><i data-lucide="pencil"></i></button>
       </div>`;
 
-      html+=`<div class="row" style="${isPartiallyPaid(a)?'border-color:var(--amarelo);background:#fffbf0':''}">
+      // destaque verde apenas se ESTE lado (g.who) pagou
+      const thisSidePaid=a._source==='card'?false:(g.who==='eu'?a.paidByEu:g.who==='pai'?a.paidByPai:isFullyPaid(a));
+      const rowCls=thisSidePaid?'row-paid-here':'';
+      const rowStyle=!thisSidePaid&&isPartiallyPaid(a)?'border-left:3px solid var(--amarelo)':'';
+      html+=`<div class="row ${rowCls}" style="${rowStyle}">
         <div class="dot" style="background:var(--${col})"></div>
         <div class="main">
           <div class="name">${a.name}
@@ -681,7 +705,7 @@ function renderDivisao(){
         ${btns}
       </div>`;
     });
-    html+='</div></div>';
+    html+='</div></div></div>';
   });
 
   if(!html)html=`<div class="card">${emptyMsg('split-square-vertical','Nenhuma conta vinculada a salários. Edite as contas e defina a qual salário pertencem.')}</div>`;
@@ -733,18 +757,24 @@ function renderContas(){
       let halfInfo='';
       if(a.payer==='dividido'){
         const euChip=a.paidByEu
-          ?`<span class="half-chip half-eu"><i data-lucide="check" style="width:11px;height:11px"></i>Eu paguei</span>`
-          :`<span class="half-chip half-pend"><i data-lucide="circle" style="width:11px;height:11px"></i>Eu pendente</span>`;
+          ?`<span class="half-chip half-eu"><i data-lucide="check" style="width:11px;height:11px"></i>Eu paguei ${fmt(a.value/2)}</span>`
+          :`<span class="half-chip half-pend"><i data-lucide="clock" style="width:11px;height:11px"></i>Eu: ${fmt(a.value/2)} pendente</span>`;
         const paiChip=a.paidByPai
-          ?`<span class="half-chip half-pai"><i data-lucide="check" style="width:11px;height:11px"></i>Pai pagou</span>`
-          :`<span class="half-chip half-pend"><i data-lucide="circle" style="width:11px;height:11px"></i>Pai pendente</span>`;
+          ?`<span class="half-chip half-pai"><i data-lucide="check" style="width:11px;height:11px"></i>Pai pagou ${fmt(a.value/2)}</span>`
+          :`<span class="half-chip half-pend"><i data-lucide="clock" style="width:11px;height:11px"></i>Pai: ${fmt(a.value/2)} pendente</span>`;
         halfInfo=`<div class="half-row">${euChip}${paiChip}</div>`;
       }
 
       const dueIcon=col==='verde'?'check':col==='amarelo'?'alarm-clock':col==='vermelho'?'alert-circle':'calendar';
       const dueTxt=col==='amarelo'?'HOJE':col==='vermelho'?'Atrasado (dia '+a.due+')':'Dia '+a.due;
 
-      html+=`<div class="row" style="${partial?'border-color:var(--amarelo);background:#fffbf0':''}">
+      const valBlock=a.payer==='dividido'
+        ?`<div style="text-align:right">
+            <div class="amt">${fmt(a.value)}</div>
+            <div style="font-size:11.5px;font-weight:700;color:var(--gold-2);margin-top:2px">cada ${fmt(a.value/2)}</div>
+          </div>`
+        :`<div class="amt">${fmt(a.value)}</div>`;
+      html+=`<div class="row" style="${partial?'border-left:4px solid var(--amarelo);background:#fffbf0':isFullyPaid(a)?'border-left:4px solid var(--verde)':''}">
         <div class="dot" style="background:var(--${col})"></div>
         <div class="main">
           <div class="name">${a.name}
@@ -752,10 +782,10 @@ function renderContas(){
             <span class="tag cat">${a.cat}</span>
             <span class="due-pill due-${col}"><i data-lucide="${dueIcon}" style="width:12px;height:12px"></i>${dueTxt}</span>
           </div>
-          <div class="meta">${a.type} · ${a.method}${a.obs?' · '+a.obs:''}${a.payer==='dividido'?` · <b style="color:var(--gold-2)">cada: ${fmt(a.value/2)}</b>`:''}</div>
+          <div class="meta">${a.type} · ${a.method}${a.obs?' · '+a.obs:''}</div>
           ${halfInfo}
         </div>
-        <div class="amt">${fmt(a.value)}</div>
+        ${valBlock}
         <div class="row-actions">
           ${!isFullyPaid(a)
             ?`<button class="ico-btn pay" title="Marcar pago" onclick="payConta('${a.id}')"><i data-lucide="check"></i></button>`
